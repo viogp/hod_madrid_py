@@ -9,17 +9,17 @@ Code to construct mock catalogues bwith an Halo Occupation Distribution (HOD) mo
 ## Installing and running the code
 
 1. Download the code. In the command line you can clone the repository:
-   git clone git@github.com:
+   git clone git@github.com:computationalAstroUAM/hod_madrid_jax.git
 2. Get to the repository. In the command line:
-   cd [PATH TO REPOSITORY]/hod_madrid_jax/
+   '''cd [PATH TO REPOSITORY]/hod_madrid_jax/'''
 3. Get the adequate libraries. For this, you might want to create a conda environment from the repository's *environment.yml* (this is not neccessary if you already have the needed libraries):
-   conda env create -f environment.yml
+   '''conda env create -f environment.yml'''
    1. Activate the environment:
-      conda activate hod_madrid_jax
+     '''conda activate hod_madrid_jax'''
    2. To deactivate the environment when you are done: 
-      conda deactivate
+     '''conda deactivate'''
 4. Run the code using the provided example:
-   python produce_hod_mock.py
+   '''python produce_hod_mock.py'''
 
 ### Test run
 
