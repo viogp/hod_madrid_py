@@ -1,0 +1,29 @@
+name: hod_madrid_jax
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+
+  # Scientific computing stack
+  - numpy>=1.20
+  - scipy>=1.7
+  - matplotlib>=3.5
+
+  # JAX for high-performance computing (CPU only)
+  - jax>=0.4.0
+  - jaxlib>=0.4.0
+
+  # Data handling and I/O
+  - h5py  
+
+  #- typer
+  #- loguru
+  #- tqdm
+  - ruff
+  - pytest
+  
+  - pip
+  - pip:
+    #- python-dotenv
+    - mkdocs
