@@ -1,5 +1,10 @@
 import jax.numpy as jnp
+import jax.random as random
 from jax import jit, lax
+from typing import Tuple, NamedTuple
+
+import src.hod_io as io
+from src.hod_cosmology import Delta_vir
 
 @jit
 def I_NFW(x: float) -> float:
@@ -34,3 +39,49 @@ def R_from_mass(Mass: float, OVD: float, rho_crit: float) -> float:
     """Radius from mass and overdensity"""
     return (3.0 / (4.0 * rho_crit * OVD * jnp.pi) * Mass)**(1.0/3.0)
 
+
+@jit
+def NFW_to_pos(key, M: float, params:io.HODParams) -> Tuple[float, float, float]:
+    """Generate position within NFW halo"""
+    x_max = concentration_klypin(M, params.zsnap)
+    I_max = I_NFW(x_max)
+        
+    key, subkey = random.split(key)
+    y_rand = random.uniform(subkey) * I_max
+        
+    # Binary search for inverse
+    def binary_search_body(carry):
+        low, high, mid = carry
+        y_try = I_NFW(mid)
+        new_low = lax.cond(y_try > y_rand, lambda: low, lambda: mid)
+        new_high = lax.cond(y_try > y_rand, lambda: mid, lambda: high)
+        new_mid = 0.5 * (new_low + new_high)
+        return (new_low, new_high, new_mid)
+        
+    def binary_search_cond(carry):
+        low, high, mid = carry
+        y_try = I_NFW(mid)
+        return jnp.abs(y_try - y_rand) > 0.001 * I_max
+        
+    init_search = (0.0, x_max, 0.5 * x_max)
+    _, _, final_mid = lax.while_loop(binary_search_cond, binary_search_body, init_search)
+        
+    # Calculate radius
+    Delta_vir_val = Delta_vir(params.zsnap, params.omega_M)
+    R_mass = R_from_mass(M, Delta_vir_val, params.rho_crit)
+    c_val = concentration_klypin(M, params.zsnap)
+    R = final_mid * R_mass / (c_val * params.K)
+    
+    # Generate spherical coordinates
+    key, subkey1 = random.split(key)
+    key, subkey2 = random.split(key)
+    
+    phi = random.uniform(subkey1) * 2 * jnp.pi
+    costh = random.uniform(subkey2) * 2 - 1.0
+    sinth = jnp.sqrt(1.0 - costh**2)
+    
+    Dx = R * sinth * jnp.cos(phi)
+    Dy = R * sinth * jnp.sin(phi)
+    Dz = R * costh
+
+    return Dx, Dy, Dz

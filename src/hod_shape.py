@@ -9,7 +9,7 @@ import src.hod_pdf as pdf
 def HOD_powerlaw(key, M: float, params: io.HODParams) -> int:
     """Halo Occupation Distribution for satellites using power law"""
     def zero_case():
-        return 0
+        return jnp.int32(0)  # Explicitly cast to int32
     
     def main_case():
         xsat = (M - params.M0) / params.M1

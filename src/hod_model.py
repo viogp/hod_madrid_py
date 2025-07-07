@@ -9,6 +9,10 @@ from jax import random as jrand
 
 import src.hod_io as io
 from  src.hod_shape import HOD_powerlaw,HOD_gaussPL
+import src.hod_radial_profile as rp
+import src.hod_v_profile as vp
+from src.hod_pdf import rand_gauss
+
 # =====================================================
 # MAIN PROCESSING FUNCTION
 # =====================================================
@@ -29,7 +33,6 @@ def process_halo_line(line: str, f_out, key, params: io.HODParams, MORE: bool = 
     key, subkey2 = random.split(key)
 
     Nsat = HOD_powerlaw(subkey1, M, params)
-    print(subkey1,params);exit() ####here             
     Ncent = HOD_gaussPL(subkey2, logM, params)
 
     # Write central galaxy if present
@@ -46,16 +49,16 @@ def process_halo_line(line: str, f_out, key, params: io.HODParams, MORE: bool = 
         key, subkey = random.split(key)
         
         # Generate position offset
-        Dx, Dy, Dz = NFW_to_pos(subkey, M, params)
+        Dx, Dy, Dz = rp.NFW_to_pos(subkey, M, params)
         
         # Generate velocity offset
         key, subkey = random.split(key)
-        Dvx, Dvy, Dvz = vir_to_vel(subkey, M, params)
+        Dvx, Dvy, Dvz = vp.vir_to_vel(subkey, M, params)
         
         # Add tangential velocity component
         key, subkey = random.split(key)
         vtrand = rand_gauss(subkey) * params.vtdisp + params.vt
-        
+
         Dr = jnp.sqrt(Dx**2 + Dy**2 + Dz**2)
         Dr = jnp.maximum(Dr, 1e-10)  # Avoid division by zero
         

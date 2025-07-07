@@ -29,9 +29,9 @@ def poisson_sample(key, lam: float) -> int:
     
     key, subkey = random.split(key)
     r = random.uniform(subkey)
-    init_val = (0, 0.0, key)
+    init_val = (jnp.int32(0), 0.0, key)  # Explicit int32 initialization
     k, prob, _ = lax.while_loop(cond_fun, body_fun, init_val)
-    return k
+    return jnp.int32(k)  # Explicit cast to int32
 
 @jit
 def neg_binomial_sample(key, x: float, beta: float) -> int:
@@ -56,9 +56,9 @@ def neg_binomial_sample(key, x: float, beta: float) -> int:
     
     key, subkey = random.split(key)
     rand01 = random.uniform(subkey)
-    init_val = (0, 0.0, key)
+    init_val = (jnp.int32(0), 0.0, key)  # Explicit int32 initialization
     N, P, _ = lax.while_loop(cond_fun, body_fun, init_val)
-    return N - 1  # Adjust for 0-based indexing
+    return jnp.int32(N - 1)  # Explicit cast to int32 and adjust for 0-based indexing
 
 @jit
 def binomial_sample(key, x: float, beta: float) -> int:
@@ -70,13 +70,13 @@ def binomial_sample(key, x: float, beta: float) -> int:
     
     # Standard binomial sampling
     key, subkey = random.split(key)
-    return random.binomial(subkey, n_val.astype(int), p_val)
+    result = random.binomial(subkey, n_val.astype(jnp.int32), p_val)
+    return jnp.int32(result)  # Explicit cast to int32
 
 @jit
 def next_integer(key, x: float) -> int:
     """Sample integer based on fractional part"""
-    low = jnp.floor(x).astype(int)
+    low = jnp.floor(x).astype(jnp.int32)  # Explicit cast to int32
     key, subkey = random.split(key)
     rand01 = random.uniform(subkey)
-    return lax.cond(rand01 > (x - low), lambda: low, lambda: low + 1)
-
+    return jnp.int32(lax.cond(rand01 > (x - low), lambda: low, lambda: low + 1))  # Explicit cast
