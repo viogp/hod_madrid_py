@@ -27,9 +27,9 @@ def process_halo_line(line: str, f_out, key, params: io.HODParams, MORE: bool = 
     # Generate satellite and central galaxies
     key, subkey1 = random.split(key)
     key, subkey2 = random.split(key)
-    
+
     Nsat = HOD_powerlaw(subkey1, M, params)
-    print(Nsat);exit() ####here         
+    print(subkey1,params);exit() ####here             
     Ncent = HOD_gaussPL(subkey2, logM, params)
 
     # Write central galaxy if present

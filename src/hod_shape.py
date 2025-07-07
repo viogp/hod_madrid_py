@@ -3,7 +3,7 @@ import jax.random as random
 from jax import jit, lax
 
 import src.hod_io as io
-import src.hod_stats as pdf
+import src.hod_pdf as pdf
 
 @jit
 def HOD_powerlaw(key, M: float, params: io.HODParams) -> int:

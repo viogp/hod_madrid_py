@@ -66,6 +66,7 @@ def main():
                           f"vfact{vfact:.2f}_beta{beta:.3f}_K{K:.2f}_"
                           f"vt{vt:.0f}pm{vtdisp:.0f}_"
                           f"BVG_product_nosubhalos_trunc_binomialextended.dat")
+
     else:
         output_filename = (f"galaxies_1000Mpc_NFW_"
                           f"mu{mu:.3f}_Ac{Ac:.4f}_As{As:.5f}_"
