@@ -1,82 +1,197 @@
-import jax.numpy as jnp
-import jax.random as random
-from jax import jit, lax
-import jax.scipy as jsp
+"""
+Random sampling functions for HOD models
+"""
 
-@jit
-def rand_gauss(key) -> float:
-    """Generate Gaussian random number"""
-    return random.normal(key)
+from numba import jit
+import numpy as np
+import math
 
-# =====================================================
-# RANDOM SAMPLING FUNCTIONS
-# =====================================================
+import src.hod_const as c
 
-@jit
-def poisson_sample(key, lam: float) -> int:
+@jit(nopython=True)
+def rand_gauss():
+    """Generate Gaussian (Box-Muller) random number"""
+    v1 = 2.0 * np.random.random() - 1.0
+    v2 = 2.0 * np.random.random() - 1.0
+    s = v1*v1 + v2*v2
+    
+    while s >= 1.0:
+        v1 = 2.0 * np.random.random() - 1.0
+        v2 = 2.0 * np.random.random() - 1.0
+        s = v1*v1 + v2*v2
+    
+    if s == 0.0:
+        return 0.0
+    else:
+        return v1 * math.sqrt(-2.0 * math.log(s) / s)
+
+    
+@jit(nopython=True)
+def factorial_float(f):
+    """Calculate factorial returning float (for use in probability calculations)"""
+    if f == 0:
+        return 1.0
+    result = 1.0
+    for i in range(1, int(f) + 1):
+        result *= float(i)
+    return result
+
+@jit(nopython=True)
+def poisson_sample(lam):
     """Sample from Poisson distribution"""
-    def body_fun(carry):
-        k, prob, key = carry
-        key, subkey = random.split(key)
-        prob += (lam**k * jnp.exp(-lam)) / jsp.special.gamma(k + 1.0)
-        return (k + 1, prob, key)
+    k = 0
+    prob = 0.0
+    r = np.random.random()
     
-    def cond_fun(carry):
-        k, prob, key = carry
-        key, subkey = random.split(key)
-        r = random.uniform(subkey)
-        return (prob < r) & (prob < 0.999999999999999)
+    while prob < 0.999999999999999:
+        prob += math.pow(lam, k) * math.exp(-lam) / factorial_float(k)
+        if r < prob:
+            return k
+        k += 1
+        if k > c.chunk_size:  # Safety break to prevent infinite loops
+            break
     
-    key, subkey = random.split(key)
-    r = random.uniform(subkey)
-    init_val = (jnp.int32(0), 0.0, key)  # Explicit int32 initialization
-    k, prob, _ = lax.while_loop(cond_fun, body_fun, init_val)
-    return jnp.int32(k)  # Explicit cast to int32
+    return k
 
-@jit
-def neg_binomial_sample(key, x: float, beta: float) -> int:
+@jit(nopython=True)
+def next_integer(x):
+    """Sample integer based on fractional part - direct translation from C"""
+    low = int(math.floor(x))
+    rand01 = np.random.random()
+    
+    if rand01 > (x - low):
+        return low
+    else:
+        return low + 1
+
+@jit(nopython=True)
+def product(a, b):
+    """Calculate product from b to a-1 (avoiding gamma function overflow)"""    
+    c = int(round(a - b))
+    s = 1.0
+    for j in range(c + 1):
+        s *= (j + b)    
+    return s    
+
+
+@jit(nopython=True)
+def neg_binomial_sample(x, beta):
     """Sample from negative binomial distribution"""
-    r = 1.0 / beta
+    r = 1.0 / beta  
     p = r / (r + x)
+    P = 0.0
+    N = -1
+    rand01 = np.random.random()
     
-    def body_fun(carry):
-        N, P, key = carry
-        key, subkey = random.split(key)
-        # Use log-gamma to avoid overflow
-        log_prob = (jsp.special.gammaln(N + r) - jsp.special.gammaln(r) - 
-                   jsp.special.gammaln(N + 1) + r * jnp.log(p) + N * jnp.log(1 - p))
-        P += jnp.exp(log_prob)
-        return (N + 1, P, key)
+    while P < rand01:
+        N += 1
+        # Use product function to avoid gamma function overflow
+        prob_term = (product(N + r - 1, r) / factorial_float(N) * 
+                    math.pow(p, r) * math.pow(1 - p, N))
+        P += prob_term
+        
+        if N > c.chunk_size:  # Safety break
+            break
     
-    def cond_fun(carry):
-        N, P, key = carry
-        key, subkey = random.split(key)
-        rand01 = random.uniform(subkey)
-        return P < rand01
-    
-    key, subkey = random.split(key)
-    rand01 = random.uniform(subkey)
-    init_val = (jnp.int32(0), 0.0, key)  # Explicit int32 initialization
-    N, P, _ = lax.while_loop(cond_fun, body_fun, init_val)
-    return jnp.int32(N - 1)  # Explicit cast to int32 and adjust for 0-based indexing
+    return N
 
-@jit
-def binomial_sample(key, x: float, beta: float) -> int:
+
+@jit(nopython=True)
+def g0(mean, b):
+    """Helper function g0 for extended binomial"""
+    result = 0.0
+    if b >= 0:
+        for i in range(b + 1):
+            result += math.pow(-mean, i) / factorial_float(i)
+    return result
+
+
+@jit(nopython=True)
+def betas_func(i, beta):
+    """Helper function betas for extended binomial"""
+    result2 = 1.0
+    for j in range(1, i + 1):
+        result2 *= (j * beta + 1)
+    return result2
+
+
+@jit(nopython=True)
+def gi(i, Nsat, mean, beta):
+    """Helper function gi for extended binomial"""
+    if i + 1 - Nsat < 0:
+        return 0.0
+    else:
+        return (math.pow(-1, i + 1 - Nsat) / factorial_float(i + 1 - Nsat) * 
+                math.pow(mean, i + 1 - Nsat) * betas_func(i, beta))
+
+    
+@jit(nopython=True)
+def gn(i, Nsat, mean, beta):
+    """Helper function gn for extended binomial"""
+    res = 0.0
+    for j in range(1, i):
+        res += gi(j, Nsat, mean, beta)
+    return res
+
+@jit(nopython=True)
+def f(Nsat, beta, mean):
+    """Helper function f for extended binomial"""
+    q = int(math.ceil(-1.0 / beta))
+    if q > (mean + 1) and Nsat < q + 0.01 and beta < -0.3333334:
+        numerator = (math.pow(q, Nsat) * factorial_float(q - Nsat) / factorial_float(q) * 
+                    (g0(mean, 1 - Nsat) + gn(q, Nsat, mean, beta)))
+        denominator = math.pow(1 - mean / q, q - Nsat)
+        return numerator / denominator
+    else:
+        return 1.0
+
+    
+@jit(nopython=True)
+def n_func(y, z):
+    """Helper function n for extended binomial"""
+    q = int(math.ceil(1.0 / z))
+    trunc_val = int(math.trunc(y + 1.0))
+    if q >= trunc_val:
+        return float(q)
+    else:
+        return float(trunc_val)
+
+    
+@jit(nopython=True)
+def p_func(y, z):
+    """Helper function p for extended binomial"""
+    q = int(math.ceil(1.0 / z))
+    trunc_val = int(math.trunc(y + 1.0))
+    if q >= trunc_val:
+        return y / q
+    else:
+        return y / trunc_val
+
+    
+@jit(nopython=True)
+def binomial_sample(x, beta):
     """Sample from extended binomial distribution"""
     a = -beta
-    n_val = jnp.ceil(1.0 / a)
-    n_val = jnp.maximum(n_val, jnp.trunc(x + 1.0))
-    p_val = x / n_val
+    P = 0.0
+    N = -1
+    rand01 = np.random.random()
     
-    # Standard binomial sampling
-    key, subkey = random.split(key)
-    result = random.binomial(subkey, n_val.astype(jnp.int32), p_val)
-    return jnp.int32(result)  # Explicit cast to int32
-
-@jit
-def next_integer(key, x: float) -> int:
-    """Sample integer based on fractional part"""
-    low = jnp.floor(x).astype(jnp.int32)  # Explicit cast to int32
-    key, subkey = random.split(key)
-    rand01 = random.uniform(subkey)
-    return jnp.int32(lax.cond(rand01 > (x - low), lambda: low, lambda: low + 1))  # Explicit cast
+    n_val = n_func(x, a)
+    p_val = p_func(x, a)
+    
+    while P < rand01:
+        N += 1
+        f_val = f(N, beta, x)
+        
+        # Calculate binomial probability term
+        binom_coeff = (factorial_float(int(n_val)) / 
+                      (factorial_float(int(n_val) - N) * factorial_float(N)))
+        prob_term = (f_val * binom_coeff * 
+                    math.pow(p_val, N) * math.pow(1 - p_val, n_val - N))
+        
+        P += prob_term
+        
+        if N > c.chunk_size:  # Safety break
+            break
+    
+    return N

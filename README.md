@@ -1,4 +1,4 @@
-# hod_madrid_jax
+# hod_madrid_py
 
 <a target="_blank" href="https://cookiecutter-data-science.drivendata.org/">
     <img src="https://img.shields.io/badge/CCDS-Project%20template-328F97?logo=cookiecutter" />
@@ -9,13 +9,13 @@ Code to construct mock catalogues bwith an Halo Occupation Distribution (HOD) mo
 ## Installing and running the code
 
 1. Download the code. In the command line you can clone the repository:
-   git clone git@github.com:computationalAstroUAM/hod_madrid_jax.git
+   git clone git@github.com:computationalAstroUAM/hod_madrid_py.git
 2. Get to the repository. In the command line:
-   '''cd [PATH TO REPOSITORY]/hod_madrid_jax/'''
+   '''cd [PATH TO REPOSITORY]/hod_madrid_py/'''
 3. Get the adequate libraries. For this, you might want to create a conda environment from the repository's *environment.yml* (this is not neccessary if you already have the needed libraries):
    '''conda env create -f environment.yml'''
    1. Activate the environment:
-     '''conda activate hod_madrid_jax'''
+     '''conda activate hod_madrid_py'''
    2. To deactivate the environment when you are done: 
      '''conda deactivate'''
 4. Run the code using the provided example:
@@ -30,7 +30,7 @@ Running the example code, python produce_hod_mock.py, will generate an HOD mock 
 ## Project Organization
 
 ```
-├── Makefile           <- Makefile with convenience commands like `make data` or `make train`
+├── produce_hod_mock_updated.py <- Example to run the code
 ├── README.md          <- The top-level README for developers using this project.
 ├── data
 │   ├── example        <- File with UNIT haloes to make a test run
@@ -38,7 +38,7 @@ Running the example code, python produce_hod_mock.py, will generate an HOD mock 
 ├── docs               <- A default mkdocs project; see www.mkdocs.org for details
 │
 ├── pyproject.toml     <- Project configuration file with package metadata for 
-│                         hod_mad_jax and configuration for tools like black
+│                         hod_madrid_py and configuration for tools like black
 │
 ├── environment.yml    <- The requirements file for reproducing the analysis environment
 │
@@ -47,13 +47,19 @@ Running the example code, python produce_hod_mock.py, will generate an HOD mock 
     │
     ├── __init__.py    <- Makes src a Python module
     │
-    ├── hod.py         <- Main code for the HOD modelling
+    ├── hod_model.py   <- Main code for the HOD modelling
+    │    │
+    ├── hod_io.py      <- Read input parameters and file properties
     │
-    ├── hod_config.py  <- Store useful variables and configuration
+    ├── hod_shape.py   <- Shape of the average HOD
     │
-    ├── .py     <- Scripts to
+    ├── hod_pdf.py     <- Probability distributions
     │
-    ├── .py    <- Code to
+    ├── hod_radial_profile.py  <- Radial profile for satellite galaxies 
+    │
+    ├── hod_v_profile.py       <- Velocity profile for satellite galaxies 
+    │
+    ├── hod_cosmology.py       <- Codes for cosmological parameters
     │
     └── hod_plots.py   <- Code to create visualizations
 ```

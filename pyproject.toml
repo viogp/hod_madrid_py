@@ -3,9 +3,9 @@ requires = ["flit_core >=3.2,<4"]
 build-backend = "flit_core.buildapi"
 
 [project]
-name = "hod_madrid_jax"
+name = "hod_madrid_py"
 version = "0.0.1"
-description = "Code to construct mock catalogues with an Halo Occupation Distribution (HOD) model. The code is based on Avila+2020. Please cite this paper if you use the code."
+description = "Code to construct mock catalogues with an Halo Occupation Distribution (HOD) model. The code is based on Avila+2020 and VosGines+24. Please cite these papers if you use the code."
 authors = [
   { name = "Madrid UAM,CIEMAT,IFT" },
 ]
@@ -27,6 +27,6 @@ include = ["pyproject.toml", "src/**/*.py"]
 extend-select = ["I"]  # Add import sorting
 
 [tool.ruff.lint.isort]
-known-first-party = ["hod_madrid_jax"]
+known-first-party = ["hod_madrid_py"]
 force-sort-within-sections = true
 

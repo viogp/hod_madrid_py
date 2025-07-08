@@ -1,4 +1,4 @@
-name: hod_madrid_jax
+name: hod_madrid_py
 channels:
   - conda-forge
   - defaults
@@ -10,9 +10,8 @@ dependencies:
   - scipy>=1.7
   - matplotlib>=3.5
 
-  # JAX for high-performance computing (CPU only)
-  - jax>=0.4.0
-  - jaxlib>=0.4.0
+  # Numba for high-performance computing (CPU only)
+  - numba
 
   # Data handling and I/O
   - h5py  
