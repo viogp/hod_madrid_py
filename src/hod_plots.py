@@ -25,7 +25,6 @@ def get_distinct_colors(n_colors):
 def plot_satellite_radial_distribution(
     mock_file: str,
     output_dir: str = "output/plots",
-    istep: int = 266,
     rmin: float = -3.0,
     rmax: float = 2.0,
     dr: float = 0.05,
@@ -46,16 +45,12 @@ def plot_satellite_radial_distribution(
     
     Parameters:
     -----------
-    hmf_file : str
-        Path to the Halo Mass Function file (for reference/metadata)
     mock_file : str  
         Path to mock file. If contains '_subvol' followed by a number,
         will automatically find and process all subvolumes. Expected format:
         mock000_subvolN.dat or similar
     output_dir : str, default="."
         Directory to save output plots
-    istep : int, default=266
-        Time step identifier for output naming
     rmin, rmax : float, default=-3.0, 2.0
         Log10 range for radial distance bins (Mpc/h)
     dr : float, default=0.05
@@ -79,6 +74,7 @@ def plot_satellite_radial_distribution(
     # Check if mock_file contains subvolume pattern and find all files
     subvol_pattern = r'_subvol(\d+)'
     subvols = re.search(subvol_pattern, mock_file)
+    base_name = os.path.basename(mock_file)
 
     mock_files = []
     if subvols is not None:
@@ -86,7 +82,6 @@ def plot_satellite_radial_distribution(
         base_pattern = re.sub(subvol_pattern, '_subvol*', mock_file)
         # Replace the specific number with a wildcard pattern
         base_dir = os.path.dirname(mock_file)
-        base_name = os.path.basename(mock_file)
         pattern = re.sub(subvol_pattern, '_subvol[0-9]*', base_name)
         
         if base_dir:
@@ -113,7 +108,8 @@ def plot_satellite_radial_distribution(
     else:
         mock_files = [mock_file]
 
-    print(f"Processing {len(mock_files)} mock file(s)")
+    if verbose:
+        print(f"Radial profile plot with {len(mock_files)} file(s)")
 
     # Initialize figure
     fig = plt.figure(figsize=figsize)
@@ -138,7 +134,8 @@ def plot_satellite_radial_distribution(
     
     # Process each mock file
     for im, mock in enumerate(mock_files):
-        print(f"Processing mock file: {mock}")
+        if verbose:
+            print(f"Processing file: {mock}")
         io.check_input_file(mock)
 
         # Extract K value if present in filename
@@ -149,25 +146,25 @@ def plot_satellite_radial_distribution(
                 kval = kval1.split('_')[0]
             except:
                 pass
-        
+
         avgr = 0.0
         ntot = 0
         nsatr = np.zeros(len(rbins))
-                    
+
         # Read mock catalogue
         ldx, ldy, ldz = [], [], []
         try:
-            # Load only the columns we need: dx, dy, dz, cen
-            data = np.loadtxt(mockfile, usecols=[11, 12, 13, 15])
-    
+            # Load only the columns we need: dx, dy, dz, sat
+            data = np.loadtxt(mock, usecols=[11, 12, 13, 7])
+
             # Filter for satellite galaxies (cen != 1)
-            satellite_mask = data[:, 3] != 1
-            satellite_data = data[satellite_mask]
-    
+            sat_mask = data[:, 3] > 0
+            sat_data = data[sat_mask]
+
             # Extract coordinates
-            ldx.extend(satellite_data[:, 0])
-            ldy.extend(satellite_data[:, 1]) 
-            ldz.extend(satellite_data[:, 2])
+            ldx.extend(sat_data[:, 0])
+            ldy.extend(sat_data[:, 1]) 
+            ldz.extend(sat_data[:, 2])
     
         except Exception as e:
             print(f"    Error reading {mock}: {e}")
@@ -186,7 +183,7 @@ def plot_satellite_radial_distribution(
         # Average and total number
         avgr += np.sum(rsat)
         ntot += len(rsat)
-        print(avgr,ntot); exit()
+
         # Track global limits
         ind = np.where(rsat > 0.)[0]
         if len(ind) > 0:
@@ -227,13 +224,14 @@ def plot_satellite_radial_distribution(
     
     # Save figure
     os.makedirs(output_dir, exist_ok=True)
-    plotfile = os.path.join(output_dir, f'nsat_ntot_r_{istep}.png')
+    plotfile = os.path.join(output_dir, f'rp_sat_{base_name}.png')
     fig.savefig(plotfile, dpi=150, bbox_inches='tight')
 
     if verbose:
-        print(f'Output saved: {plotfile}')
+        print(f'Radial profile plot: {plotfile}')
         
     return plotfile
+
 
 
 def make_test_plots(params,outroot,hmf_file=None,verbose=False):
@@ -253,21 +251,15 @@ def make_test_plots(params,outroot,hmf_file=None,verbose=False):
     --------
     """
     mock_file = params.outfile
+    #mock_file = '/home/violeta/buds/hods/galaxies_1000Mpc_V1.4more_NFW_mu12.000_Ac1.0000_As0.50000_vfact1.00_beta0.000_K1.00_vt0pm0_BVG_product_nosubhalos_trunc_binomialextended.dat'
     
     output_dir = outroot / "plots"
     output_dir.mkdir(parents=True, exist_ok=True)
-
+    sep = io.line_separator()
+    print(sep+"\n Plots: "+str(output_dir)+"\n"+sep)
+    
     plotfile = plot_satellite_radial_distribution(
         mock_file=mock_file,output_dir=output_dir,verbose=verbose)
 
     return 0
 
-# Example usage
-if __name__ == "__main__":
-    # Example call
-    hmf_file = "path/to/hmf_file.dat"
-    mock_file = "path/to/mock000_subvol0.dat"  # Will auto-detect subvolumes
-    
-    plotfile = plot_satellite_radial_distribution(mock_file=mock_file,
-                                                  output_dir=output_dir)
-    

@@ -10,7 +10,7 @@ from src.hod_io import create_hod_params
 from src.hod_plots import make_test_plots
 
 def main():
-    produce_mock = False   # True to produce a mock catalogue
+    produce_mock = True   # True to produce a mock catalogue
     test_plots   = True   # True to make test plots
     verbose      = True   # Set to True for progress messages
     seed         = 42     # Random seed for reproducibility
