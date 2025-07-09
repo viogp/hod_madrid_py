@@ -3,16 +3,25 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.9
+  - python>=3.7
 
   # Scientific computing stack
-  - numpy>=1.20
+  - numpy>=1.7
   - scipy>=1.7
   - matplotlib>=3.5
 
   # Numba for high-performance computing (CPU only)
   - numba
 
+  # For corfunc
+  - gsl>=2.4
+  - gcc_linux-64  # For Linux
+  - gxx_linux-64  # For Linux
+  # - clang_osx-64  # For macOS - uncomment if on macOS
+  # - clangxx_osx-64  # For macOS - uncomment if on macOS
+  - make
+  - git
+  
   # Data handling and I/O
   - h5py  
 
@@ -26,3 +35,4 @@ dependencies:
   - pip:
     #- python-dotenv
     - mkdocs
+    - corrfunc 

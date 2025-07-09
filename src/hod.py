@@ -195,7 +195,6 @@ def process_halo_file_chunked(params, chunk_size=c.chunk_size, verbose=False):
         return None
 
 
-
 def run_hod_model(params,verbose=False):
     """
     Run HOD model with automatic backend selection for optimal performance

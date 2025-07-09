@@ -7,10 +7,13 @@ Avila+2020, Vos Gines+2024
 from pathlib import Path
 from src.hod import run_hod_model
 from src.hod_io import create_hod_params
+from src.hod_plots import make_test_plots
 
 def main():
-    verbose   = True   # Set to True for progress messages
-    seed      = 42     # Random seed for reproducibility
+    produce_mock = False   # True to produce a mock catalogue
+    test_plots   = True   # True to make test plots
+    verbose      = True   # Set to True for progress messages
+    seed         = 42     # Random seed for reproducibility
     
     # Cosmological and simulation parameters
     zsnap = 0.8594   # Snapshot redshift
@@ -93,9 +96,15 @@ def main():
     # =====================================================
     # Run the HOD model 
     # =====================================================
-    if hod_params is not None:
-        result = run_hod_model(hod_params,verbose=verbose)
-    
+    if hod_params is None:
+        result = -1
+    else:
+        if produce_mock:
+            result = run_hod_model(hod_params,verbose=verbose)
+        if test_plots:
+            result = make_test_plots(hod_params,output_dir,
+                                     verbose=verbose)
+        
     return result
 
 
