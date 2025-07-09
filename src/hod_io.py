@@ -19,33 +19,44 @@ class HODParams(NamedTuple):
     zsnap: float
     Lbox: float
     omega_M: float
+    analytical_shape: bool
+    hod_shape_file: str
     hodshape: int
     mu: float
     Ac: float
     As: float
-    vfact: float
-    beta: float
-    K: float
-    vt: float
-    vtdisp: float
     M0: float
     M1: float
     alpha: float
     sig: float
     gamma: float
+    beta: float
+    analytical_rp: bool
+    hod_rp_file: str
+    K: float
+    analytical_vp: bool
+    hod_vp_file: str
+    vfact: float
+    vt: float
+    vtdisp: float
 
 
-def create_hod_params(infile,outdir,ftype='txt',seed=42,zsnap=None, Lbox=None,
-                      omega_M=None, hodshape=None, mu=None, Ac=None, As=None,
-                      vfact=None, beta=None, K=None, vt=None, vtdisp=None,
-                      M0=None, M1=None, alpha=None, sig=None, gamma=None):
+def create_hod_params(infile,outdir,ftype='txt',seed=42,
+                      zsnap=None, Lbox=None,omega_M=None,
+                      analytical_shape=True, hod_shape_file=None,
+                      hodshape=None, mu=12, Ac=1.0, As=0.5,
+                      M0=10**11.95, M1=10**12.35, alpha=0.9, sig=0.08, gamma=-1.4,
+                      beta=0,
+                      analytical_rp=True, hod_rp_file=None,K=1,
+                      analytical_vp=True, hod_vp_file=None,                      
+                      vfact=1,vt=0, vtdisp=0):
     """Create HOD parameters structure"""
     if gamma is None:
         gamma =c.default_gamma
 
     # Check input file
     if not check_input_file(infile):
-        print("Please check your input file.")
+        print("STOP (hod_io): Please check your input file.")
         return None
 
     # Check output file
@@ -56,13 +67,33 @@ def create_hod_params(infile,outdir,ftype='txt',seed=42,zsnap=None, Lbox=None,
               f".dat")
     outfile = outdir / outnom
     if not check_output_file(outfile):
-        print("Please check your output path.")
+        print("STOP (hod_io): Please check your output path.")
         return None
 
-    return HODParams(infile=str(infile), outfile=str(outfile), ftype=ftype, seed=seed,
-                     zsnap=zsnap, Lbox=Lbox, hodshape=hodshape, omega_M=omega_M,
-                     mu=mu, Ac=Ac, As=As, vfact=vfact, beta=beta, K=K, vt=vt,
-                     vtdisp=vtdisp, M0=M0, M1=M1, alpha=alpha, sig=sig, gamma=gamma
+    # Check files if not analytical expressions
+    if not analytical_shape and (hod_shape_file is None):
+        print("STOP (hod_io): For a not analytical HOD shape, a file,")
+        print ("    hod_shape_file, should be provided")
+        return None
+    if not analytical_rp and (hod_rp_file is None):
+        print("STOP (hod_io): For a not analytical radial profile, a file,")
+        print("     hod_rp_file, should be provided")
+        return None
+    if not analytical_vp and (hod_vp_file is None):
+        print("STOP (hod_io): For a not analytical velocity profile, a file,")
+        print("     hod_vp_file, should be provided")
+        return None
+        
+        
+    return HODParams(infile=str(infile),outfile=str(outfile),ftype=ftype,seed=seed,
+                     zsnap=zsnap, Lbox=Lbox, omega_M=omega_M,
+                     analytical_shape=analytical_shape,hod_shape_file=hod_shape_file,
+                     hodshape=hodshape, mu=mu, Ac=Ac, As=As,
+                     M0=M0, M1=M1, alpha=alpha, sig=sig, gamma=gamma,
+                     beta=beta,
+                     analytical_rp=analytical_rp,hod_rp_file=hod_rp_file,K=K,
+                     analytical_vp=analytical_vp,hod_vp_file=hod_vp_file,
+                     vfact=vfact,vt=vt, vtdisp=vtdisp
     )
 
     
