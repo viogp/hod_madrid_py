@@ -515,3 +515,45 @@ def write_galaxies_to_file(galaxies, f_out, more_info=False):
             f_out.write(f"{galaxy[0]:.5f} {galaxy[1]:.5f} {galaxy[2]:.5f} "
                        f"{galaxy[3]:.5f} {galaxy[4]:.5f} {galaxy[5]:.5f} "
                        f"{galaxy[6]:.6e} {int(galaxy[7])}\n")
+
+import h5py
+
+import h5py
+import numpy as np
+
+def read_occupation_from_h5(h5file):
+    """
+    Reads the mass bins and mean occupation numbers from the HDF5 file.
+
+    Parameters:
+    -----------
+    h5file : str
+        Path to your h2s_output.h5 file.
+
+    Returns:
+    --------
+    M_min : ndarray
+        Lower limits of mass bins.
+    M_max : ndarray
+        Upper limits of mass bins.
+    Ncen_mean : ndarray
+        Mean number of centrals per halo per bin.
+    Nsat_mean : ndarray
+        Mean number of satellites per halo per bin.
+    """
+    with h5py.File(h5file, 'r') as f:
+        data = f['data']
+        M_min = np.array(data['M_min'])
+        M_max = np.array(data['M_max'])
+        Ncen = np.array(data['Ncen'])
+        Nsat = np.array(data['Nsat'])
+        N_halo = np.array(data['N_halo'])  # Asegúrate del nombre; puede ser 'N_halo' o 'Nhalo' según tu fichero
+
+    # Calcula las medias, evitando divisiones por cero
+    Ncen_mean = np.zeros_like(Ncen, dtype=float)
+    Nsat_mean = np.zeros_like(Nsat, dtype=float)
+    valid = N_halo > 0
+    Ncen_mean[valid] = Ncen[valid] / N_halo[valid]
+    Nsat_mean[valid] = Nsat[valid] / N_halo[valid]
+
+    return M_min, M_max, Ncen_mean, Nsat_mean

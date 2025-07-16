@@ -257,4 +257,3 @@ def calculate_hod_occupation(M, mu, Ac, As, alpha, sig, gamma, M0, M1, hodshape,
         Ncen = HOD_gaussPL(M, mu, sig, Ac, gamma)
         
     return Ncen, Nsat
-

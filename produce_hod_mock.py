@@ -7,7 +7,7 @@ Avila+2020, Vos Gines+2024
 from pathlib import Path
 from src.hod import run_hod_model
 from src.hod_io import create_hod_params
-from src.hod_plots import make_test_plots
+from src.hod_plots import make_test_plots, extract_positions_from_galaxy_catalog, compute_correlation_corrfunc, plot_correlation_function
 
 def main():
     produce_mock = True   # True to produce a mock catalogue
@@ -16,7 +16,7 @@ def main():
     seed         = 42     # Random seed for reproducibility
     
     # Cosmological and simulation parameters
-    zsnap = 0.8594   # Snapshot redshift
+    zsnap = 1.321    # Snapshot redshift
     omega_M = 0.3089 # Matter density parameter    
     Lbox = 1000.0    # Box size in Mpc/h
     
@@ -25,16 +25,17 @@ def main():
 
     # Default input file (modify as needed)
     input_dir = Path("data/example")
-    infile = input_dir/"UNIT_haloes_logMmin13.500_logMmax14.500.txt"
+    #infile = input_dir/"UNIT_haloes_logMmin13.500_logMmax14.500.txt"
+    infile = "/home2/guillermo/TFM_JOAQUIN/data/Halos_file_for_hod.txt"
 
     # =====================================================
     # Average HOD shape
     # =====================================================
-    analytical_shape = True
+    analytical_shape = False
     
     # For an analytical shape, the following parameters are needed
-    hodshape = 1     # Shape of the average HOD: 1, 2 or 3
-    mu = 12.0        # Log10 of characteristic halo mass
+    hodshape = 3     # Shape of the average HOD: 1, 2 or 3
+    mu = 12.5        # Log10 of characteristic halo mass
     Ac = 1.0         # Central galaxy amplitude
     As = 0.5         # Satellite galaxy amplitude
     M0_factor = -0.05  # mu offset for M0
@@ -46,7 +47,7 @@ def main():
     gamma = -1.4     # Power law slope for high mass centrals (HOD3)
 
     # If analytical_shape is False, a file with Mmin Mmax Ncen Nsat should be given
-    hod_shape_file = None
+    hod_shape_file = "/home2/guillermo/TFM_JOAQUIN/tests/h2s_output.h5"
 
     # =====================================================
     # Probability distribution function for satellites
@@ -57,9 +58,14 @@ def main():
     # Radial distribution function for satellites
     # =====================================================
     analytical_rp = True
+
+    # =====================================================
+    # Two Point Correlation Function (2PCF)
+    # =====================================================
+    test_corrfunc = True 
     
     # For analytical profile, the following parameters are needed
-    K = 1.0          # NFW truncation parameter
+    K = 0.25          # NFW truncation parameter
     
     # If analytical_rp is False, a file with r Nsat should be given
     hod_rp_file = None
@@ -104,6 +110,31 @@ def main():
         if test_plots:
             result = make_test_plots(hod_params,output_dir,
                                      verbose=verbose)
+        if test_corrfunc:
+            
+            positions_file = output_dir / "galaxy_positions.txt"
+            extract_positions_from_galaxy_catalog(
+                hod_params.outfile, positions_file)
+            
+            xi_output_file = output_dir / "corrfunc_xi.txt"
+            compute_correlation_corrfunc(
+                positions_file=str(positions_file),
+                output_file=str(xi_output_file),
+                boxsize=hod_params.Lbox,
+                rmin=1.4e-3,     
+                rmax=140.0,
+                n_bins=80,
+                n_threads=4,
+                verbose=verbose
+            )
+            
+            plot_correlation_function(
+                filename=str(xi_output_file),
+                output_png=str(output_dir / "corrfunc_xi.png"),
+                loglog=True,
+                show=True
+            )
+
         
     return result
 
