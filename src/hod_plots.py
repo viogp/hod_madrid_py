@@ -155,8 +155,9 @@ def plot_satellite_radial_distribution(
         # Read mock catalogue
         ldx, ldy, ldz = [], [], []
         try:
-            # Load only the columns we need: dx, dy, dz, sat
-            data = np.loadtxt(mock, usecols=[11, 12, 13, 7])
+            # Load only the columns we need: dx, dy, dz, sat, is_central
+            data = np.loadtxt(mock, usecols=[11, 12, 13, 7, 15])
+            ngalsat = data[:,-1][data[:, -1] == 0]
 
             # Filter for satellite galaxies (cen != 1)
             sat_mask = data[:, 3] > 0
@@ -166,7 +167,8 @@ def plot_satellite_radial_distribution(
             ldx.extend(sat_data[:, 0])
             ldy.extend(sat_data[:, 1]) 
             ldz.extend(sat_data[:, 2])
-    
+            is_sat = sat_data[:, 4] == 0
+
         except Exception as e:
             print(f"    Error reading {mock}: {e}")
             continue
@@ -195,9 +197,9 @@ def plot_satellite_radial_distribution(
             # Create histogram
             H, _ = np.histogram(lrsat, bins=np.append(rbins, rmax))
             nsatr += H
-                        
-            print(f'    Satellites found: {len(rsat)}')
-        
+
+            print(f'    Satellites found: {len(ngalsat)}')
+
     if ntot > 0:
         ytot = np.sum(nsatr)
         avgr = avgr / ntot
@@ -264,103 +266,6 @@ def make_test_plots(params,outroot,hmf_file=None,verbose=False):
 
     return 0
 
-def extract_positions_from_galaxy_catalog(
-    input_catalog_file,  # Output file from HOD code
-    output_positions_file  # New file to store only positions
-):
-    """
-    Extracts the x, y, z columns from the galaxy catalog file and saves them
-    as a new file for use with correlation function codes.
-    """
-    data = np.loadtxt(input_catalog_file, usecols=(0, 1, 2))
-    np.savetxt(output_positions_file, data, fmt="%.6f")
-    print(f"Positions saved to: {output_positions_file}")
-    return output_positions_file
-
-def compute_correlation_corrfunc(
-    positions_file,
-    output_file,
-    boxsize,
-    rmin,
-    rmax,
-    n_bins,
-    n_threads=4,
-    verbose=True
-):
-    """
-    Computes the two-point correlation function ξ(r) using Corrfunc,
-    and returns analytical Poisson errors per bin.
-
-    Parameters:
-    -----------
-    positions_file : str
-        Path to a .txt file with three columns (x, y, z) of galaxy positions.
-    output_file : str
-        Path where the output .txt (three columns: r_center, xi, error) will be saved.
-    boxsize : float
-        Size of the simulation box (Mpc/h).
-    rmin : float
-        Minimum separation (Mpc/h) to consider.
-    rmax : float
-        Maximum separation (Mpc/h) to consider.
-    n_bins : int
-        Number of logarithmic bins between rmin and rmax.
-    n_threads : int, optional
-        Number of threads to use in Corrfunc (default: 4).
-    verbose : bool, optional
-        If True, prints progress messages (default: True).
-
-    Returns:
-    --------
-    output_file : str
-        Path to the saved .txt file with columns [r_center, xi(r), error(r)].
-    r_centers, xi_vals, errors : arrays
-        Arrays with the bin centers, xi(r), and error per bin.
-    """
-    if verbose:
-        print(f"Loading positions from: {positions_file}")
-
-    # Load positions (assumed to be a plain text file with 3 columns)
-    data = np.loadtxt(positions_file)
-    x_data, y_data, z_data = data[:, 0], data[:, 1], data[:, 2]
-
-    if verbose:
-        print("Generating log-spaced bins...")
-    rbins = np.logspace(np.log10(rmin), np.log10(rmax), n_bins + 1)
-    r_centers = 0.5 * (rbins[:-1] + rbins[1:])
-
-    if verbose:
-        print("Computing ξ(r) with Corrfunc...")
-    results = xi(
-        boxsize=boxsize,
-        nthreads=n_threads,
-        binfile=rbins,
-        X=x_data, Y=y_data, Z=z_data
-    )
-
-    # Extract xi values and npairs (pair counts)
-    xi_vals = np.array([b['xi'] for b in results])
-    npairs = np.array([b['npairs'] for b in results])
-
-    # Analytical Poisson errors: sigma_xi = (1 + xi) / sqrt(Npairs)
-    # Avoid division by zero:
-    errors = np.zeros_like(xi_vals)
-    mask = npairs > 0
-    errors[mask] = (1.0 + xi_vals[mask]) / np.sqrt(npairs[mask])
-    errors[~mask] = 0.0
-
-    # Stack r_centers, xi values, and errors into three columns
-    output_data = np.column_stack((r_centers, xi_vals, errors))
-
-    if verbose:
-        print(f"Saving correlation to: {output_file}")
-    header = "#r_center[Mpc/h], #xi(r), #err_analytical"
-    np.savetxt(output_file, output_data, delimiter=",", header=header, comments='')
-
-    if verbose:
-        print("Correlation computation complete.")
-    return output_file, r_centers, xi_vals, errors
-
 def plot_correlation_function(
     filename,
     output_png=None,
@@ -423,4 +328,227 @@ def plot_correlation_function(
     if show:
         plt.show()
 
+    plt.close()
+
+def locate_interval(val, edges):
+    '''
+    Get the index, i, of the interval, [), to which val belongs.
+    If outside the limits, using values -1 or the number of bins+1.
+
+    Parameters
+    ----------
+    val : int or float or array of ints or floats
+        Value to evaluate
+    edges : array of int or floats
+        Array of the n edges for the (n-1) intervals
+        
+    Returns
+    -------
+    jl : integer
+        Index of the interval, [edges(jl),edges(jl+1)), where val is place.
+    '''
+
+    n = edges.size
+    jl = np.searchsorted(edges, val, side='right') - 1
+    jl = np.clip(jl, -1, n - 1)
+    return jl
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+def plot_hod_occupation_from_mock(
+    mock_file: str,
+    halo_catalog_file: str,
+    output_png: str = None,
+    n_bins: int = 70,
+    mass_col_mock: int = 6,
+    halo_id_col_mock: int = 14,
+    is_central_col: int = 15,
+    mass_col_halo: int = 6,
+    halo_id_col_halo: int = 7,
+    logM_range: tuple = (10.5,14.5),
+    show: bool = True
+):
+    """
+    Plot average HOD occupation (centrals and satellites) from the mock catalog,
+    using the original halo catalog for correct normalization.
+    """
+    print(f"Loading mock catalog: {mock_file}")
+    mock_data = np.loadtxt(mock_file)
+    masses_mock = mock_data[:, mass_col_mock]
+    halo_ids_mock = mock_data[:, halo_id_col_mock].astype(int)
+    is_central = mock_data[:, is_central_col]
+
+    print(f"Loading halo catalog: {halo_catalog_file}")
+    halos_data = np.loadtxt(halo_catalog_file)
+    masses_halo = halos_data[:, mass_col_halo]
+    halo_ids_halo = halos_data[:, halo_id_col_halo].astype(int)
+
+    if logM_range is None:
+        logM_min, logM_max = np.nanpercentile(masses_halo, [0.5, 99.5])
+    else:
+        logM_min, logM_max = logM_range
+    bins = np.linspace(logM_min, logM_max, n_bins + 1)
+    bin_centers = 0.5 * (bins[:-1] + bins[1:])
+
+    # Pre-indexing: for each halo_id in mock, get indices
+    # Build a dictionary: halo_id -> indices in mock
+    from collections import defaultdict
+    halo_idx_dict = defaultdict(list)
+    for i, hid in enumerate(halo_ids_mock):
+        halo_idx_dict[hid].append(i)
+
+    # Assign each halo in catalog to a mass bin
+    bin_index = np.digitize(masses_halo, bins) - 1
+
+    ncen_per_bin = np.zeros(n_bins)
+    nsat_per_bin = np.zeros(n_bins)
+    n_halos_bin = np.zeros(n_bins, dtype=int)
+
+    for i in range(n_bins):
+        halos_in_bin = halo_ids_halo[bin_index == i]
+        n_halos_b = len(halos_in_bin)
+        n_halos_bin[i] = n_halos_b
+        if n_halos_b > 0:
+            centrals_in_bin = 0
+            satellites_in_bin = 0
+            for hid in halos_in_bin:
+                idxs = halo_idx_dict.get(hid, [])
+                if len(idxs) > 0:
+                    centrals_in_bin += np.sum(is_central[idxs] == 1)
+                    satellites_in_bin += np.sum(is_central[idxs] == 0)
+            ncen_per_bin[i] = centrals_in_bin / n_halos_b
+            nsat_per_bin[i] = satellites_in_bin / n_halos_b
+        else:
+            ncen_per_bin[i] = 0
+            nsat_per_bin[i] = 0
+
+    plt.figure(figsize=(7, 5))
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.plot(bin_centers, ncen_per_bin, label=r'$\langle N_{\rm cen}\rangle$ (centrals)')
+    plt.plot(bin_centers, nsat_per_bin, label=r'$\langle N_{\rm sat}\rangle$ (satellites)')
+    plt.xlabel(r'$\log_{10}(M_{\rm halo}/M_\odot)$')
+    plt.ylabel('Average occupation per halo')
+    plt.title('Halo Occupation Distribution (mock, normalized by halo catalog)')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    if output_png:
+        plt.tight_layout()
+        plt.savefig(output_png, dpi=150)
+        print(f"Plot saved to: {output_png}")
+    if show:
+        plt.show()
+    plt.close()
+
+
+def plot_velocity_distribution_mock(
+    mock_file: str,
+    n_bins: int = 200,
+    output_dir: str = None,
+    show: bool = True,
+    vr_input_bins=None,
+    vr_input_pdf=None,
+    vtan_input_bins=None,
+    vtan_input_pdf=None
+):
+    """
+    Plots the histogram (not normalized) of radial and tangential velocity components
+    of satellite galaxies in the mock catalog, using SAGE bin edges for fair comparison.
+    Optionally overlays the input SAGE histograms.
+
+    The y-axis is: N_counts / bin_width (not normalized to area=1).
+
+    Parameters
+    ----------
+    mock_file : str
+        Path to the mock catalog .txt file.
+    n_bins : int
+        Number of bins (only used if input bins are not given).
+    output_dir : str or None
+        If provided, saves the plot to this directory.
+    show : bool
+        If True, displays the plot.
+    vr_input_bins, vr_input_pdf : arrays or None
+        Input SAGE histogram for v_rad (optional; bins REQUIRED for comparison).
+    vtan_input_bins, vtan_input_pdf : arrays or None
+        Input SAGE histogram for |v_tan| (optional; bins REQUIRED for comparison).
+    """
+    print(f"Reading mock catalog: {mock_file}")
+    data = np.loadtxt(mock_file)
+    if data.ndim == 1:
+        data = data[None, :]
+    # Column indices
+    dx_idx, dy_idx, dz_idx = 11, 12, 13
+    dvx_idx, dvy_idx, dvz_idx = 8, 9, 10
+    is_central_idx = 15
+
+    # Select satellites only
+    is_sat = data[:, is_central_idx] == 0
+    if np.sum(is_sat) == 0:
+        print("No satellites found in mock catalog.")
+        return
+
+    dx = data[is_sat, dx_idx]
+    dy = data[is_sat, dy_idx]
+    dz = data[is_sat, dz_idx]
+    dvx = data[is_sat, dvx_idx]
+    dvy = data[is_sat, dvy_idx]
+    dvz = data[is_sat, dvz_idx]
+
+    r_vecs = np.stack([dx, dy, dz], axis=1)
+    r_hats = r_vecs / np.linalg.norm(r_vecs, axis=1, keepdims=True)
+    dv_vecs = np.stack([dvx, dvy, dvz], axis=1)
+
+    # Radial component of velocity
+    v_rad = np.sum(dv_vecs * r_hats, axis=1)
+    # Tangential modulus
+    vtan_mod = np.sqrt(np.sum(dv_vecs**2, axis=1) - v_rad**2)
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+    # ---- Radial ----
+    if vr_input_bins is not None:
+        hist_vr, bin_edges_vr = np.histogram(v_rad, bins=vr_input_bins, density=False)
+    else:
+        hist_vr, bin_edges_vr = np.histogram(v_rad, bins=n_bins, density=False)
+    bin_widths_vr = np.diff(bin_edges_vr)
+    bin_centers_vr = 0.5 * (bin_edges_vr[:-1] + bin_edges_vr[1:])
+    pdf_vr = hist_vr / bin_widths_vr
+
+    axes[0].plot(bin_centers_vr, pdf_vr, marker='o', linestyle='-', label="Mock satellites")
+    axes[0].set_xlabel(r"$v_{\rm rad}$ [km/s]")
+    axes[0].set_ylabel(r"$N_{\rm sat} / \Delta v$")
+    axes[0].set_title("Radial velocity distribution")
+    # Overlay input PDF if provided
+    if vr_input_bins is not None and vr_input_pdf is not None:
+        bin_centers = 0.5 * (vr_input_bins[:-1] + vr_input_bins[1:])
+        axes[0].plot(bin_centers, vr_input_pdf, color="k", linestyle="--", label="Input SAGE")
+    axes[0].legend()
+
+    # ---- Tangential ----
+    if vtan_input_bins is not None:
+        hist_vtan, bin_edges_vtan = np.histogram(vtan_mod, bins=vtan_input_bins, density=False)
+    else:
+        hist_vtan, bin_edges_vtan = np.histogram(vtan_mod, bins=n_bins, density=False)
+    bin_widths_vtan = np.diff(bin_edges_vtan)
+    bin_centers_vtan = 0.5 * (bin_edges_vtan[:-1] + bin_edges_vtan[1:])
+    pdf_vtan = hist_vtan / bin_widths_vtan
+
+    axes[1].plot(bin_centers_vtan, pdf_vtan, marker='o', linestyle='-', label="Mock satellites")
+    axes[1].set_xlabel(r"$|v_{\rm tan}|$ [km/s]")
+    axes[1].set_ylabel(r"$N_{\rm sat} / \Delta v$")
+    axes[1].set_title("Tangential velocity modulus distribution")
+    if vtan_input_bins is not None and vtan_input_pdf is not None:
+        bin_centers = 0.5 * (vtan_input_bins[:-1] + vtan_input_bins[1:])
+        axes[1].plot(bin_centers, vtan_input_pdf, color="k", linestyle="--", label="Input SAGE")
+    axes[1].legend()
+
+    plt.tight_layout()
+    if output_dir is not None:
+        outpath = f"{output_dir}/velocity_distribution_mock.png"
+        plt.savefig(outpath, dpi=150)
+        print(f"Plot saved to: {outpath}")
+    if show:
+        plt.show()
     plt.close()

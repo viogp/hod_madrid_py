@@ -6,6 +6,7 @@ from numba import jit
 import math
 
 import src.hod_pdf as pdf
+import src.hod_io as io
 
 @jit(nopython=True)
 def erf_approx(x):
@@ -167,6 +168,47 @@ def HOD_powerlaw(M, M0, M1, alpha, As, beta):
         return pdf.neg_binomial_sample(mean_sat, beta)
     else:
         return pdf.poisson_sample(mean_sat)  # Default case
+
+@jit(nopython=True)  
+def HOD_shape_file(M, beta, filename):
+    """
+    HOD power law for satellites
+    Direct translation from C code with all beta cases
+    
+    Parameters:
+    -----------
+    M : float
+        Halo mass (linear, not log)
+    M0 : float
+        Minimum mass for satellites
+    M1 : float
+        Characteristic satellite mass scale
+    alpha : float
+        Power law slope
+    As : float
+        Satellite amplitude
+    beta : float
+        Dispersion parameter
+        
+    Returns:
+    --------
+    int : Number of satellite galaxies
+    """
+    M_min, M_max, Ncen_mean, mean_n = io.read_occupation_from_h5(filename)
+    if mean_n <= 0.0:
+        return 0
+    
+    # Choose adequate PDF
+    if beta < -1.0:
+        return pdf.next_integer(mean_n)
+    elif beta <= 0.0 and beta >= -1.0/171.0:
+        return pdf.poisson_sample(mean_n)
+    elif beta < -1.0/171.0 and beta >= -1.0:
+        return pdf.binomial_sample(mean_n, beta)
+    elif beta > 0.0:
+        return pdf.neg_binomial_sample(mean_n, beta)
+    else:
+        return pdf.poisson_sample(mean_n)  # Default case
 
 
 @jit(nopython=True)

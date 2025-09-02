@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 from typing import Tuple, NamedTuple
 import numpy as np
-
 import src.hod_const as c
 
 # Define a parameters structure
@@ -20,7 +19,10 @@ class HODParams(NamedTuple):
     Lbox: float
     omega_M: float
     analytical_shape: bool
+    HODfit2sim: bool
     hod_shape_file: str
+    conformity: bool
+    conformity_file: str
     hodshape: int
     mu: float
     Ac: float
@@ -32,24 +34,51 @@ class HODParams(NamedTuple):
     gamma: float
     beta: float
     analytical_rp: bool
-    hod_rp_file: str
     K: float
+    extended_NFW: bool
+    hod_rp_file: str
+    N0: float
+    r0: float
+    alpha_r: float
+    beta_r: float
+    kappa_r: float
     analytical_vp: bool
     hod_vp_file: str
+    extended_vp: bool
     vfact: float
     vt: float
     vtdisp: float
+    vr1: float
+    vr2: float
+    vr3: float
+    mu1: float
+    mu2: float
+    mu3: float
+    sigma1: float
+    sigma2: float
+    sigma3: float
+    v0_tan: float
+    epsilon_tan: float
+    omega_tan: float
+    delta_tan: float
 
 
-def create_hod_params(infile,outdir,ftype='txt',seed=42,
-                      zsnap=None, Lbox=None,omega_M=None,
-                      analytical_shape=True, hod_shape_file=None,
+def create_hod_params(infile=None, outdir=None, ftype='txt', seed=50,
+                      zsnap=None, Lbox=None, omega_M=None,
+                      analytical_shape=True, HODfit2sim=False, hod_shape_file=None,
+                      conformity=False, conformity_file=None,
                       hodshape=None, mu=12, Ac=1.0, As=0.5,
                       M0=10**11.95, M1=10**12.35, alpha=0.9, sig=0.08, gamma=-1.4,
                       beta=0,
-                      analytical_rp=True, hod_rp_file=None,K=1,
-                      analytical_vp=True, hod_vp_file=None,                      
-                      vfact=1,vt=0, vtdisp=0):
+                      analytical_rp=True, K=1, extended_NFW=True,  hod_rp_file=None,
+                      N0=None, r0=None, alpha_r=None, beta_r=None, kappa_r=None,
+                      analytical_vp=True, hod_vp_file=None, extended_vp=True,
+                      vfact=1, vt=0, vtdisp=0,
+                      vr1=None, vr2=None, vr3=None,
+                      mu1=None, mu2=None, mu3=None,
+                      sigma1=None, sigma2=None, sigma3=None,
+                      v0_tan=None, epsilon_tan=None, omega_tan=None, delta_tan=None,
+                      ):
     """Create HOD parameters structure"""
     if gamma is None:
         gamma =c.default_gamma
@@ -85,16 +114,22 @@ def create_hod_params(infile,outdir,ftype='txt',seed=42,
         return None
         
         
-    return HODParams(infile=str(infile),outfile=str(outfile),ftype=ftype,seed=seed,
+    return HODParams(infile=str(infile), outfile=str(outfile), ftype=ftype, seed=seed,
                      zsnap=zsnap, Lbox=Lbox, omega_M=omega_M,
-                     analytical_shape=analytical_shape,hod_shape_file=hod_shape_file,
+                     analytical_shape=analytical_shape, HODfit2sim=HODfit2sim, hod_shape_file=hod_shape_file,
+                     conformity=conformity, conformity_file=conformity_file,
                      hodshape=hodshape, mu=mu, Ac=Ac, As=As,
                      M0=M0, M1=M1, alpha=alpha, sig=sig, gamma=gamma,
                      beta=beta,
-                     analytical_rp=analytical_rp,hod_rp_file=hod_rp_file,K=K,
-                     analytical_vp=analytical_vp,hod_vp_file=hod_vp_file,
-                     vfact=vfact,vt=vt, vtdisp=vtdisp
-    )
+                     analytical_rp=analytical_rp,  K=K, extended_NFW=extended_NFW, hod_rp_file=hod_rp_file,
+                     N0=N0, r0=r0, alpha_r=alpha_r, beta_r=beta_r, kappa_r=kappa_r,
+                     analytical_vp=analytical_vp, hod_vp_file=hod_vp_file, extended_vp=extended_vp,
+                     vfact=vfact, vt=vt, vtdisp=vtdisp,
+                     vr1=vr1, vr2=vr2, vr3=vr3,
+                     mu1=mu1, mu2=mu2, mu3=mu3,
+                     sigma1=sigma1, sigma2=sigma2, sigma3=sigma3,
+                     v0_tan=v0_tan, epsilon_tan=epsilon_tan, omega_tan=omega_tan, delta_tan=delta_tan
+                    )
 
     
     
@@ -239,7 +274,7 @@ def read_txt_chunked(filename, chunk_size=c.chunk_size):
                     parts = line.split()
                     if len(parts) >= 8:
                         chunk_data.append([float(p) for p in parts[:7]] + [int(float(parts[7]))])
-                        
+
                         # Yield chunk when it reaches chunk_size
                         if len(chunk_data) >= chunk_size:
                             yield np.array(chunk_data)
@@ -288,7 +323,7 @@ def read_hdf5_chunked(filename, chunk_size=10000):
                 'vy': ['vy', 'VY', 'vel_y', 'velocity_y'],
                 'vz': ['vz', 'VZ', 'vel_z', 'velocity_z'],
                 'logM': ['logM', 'log_mass', 'mass', 'M', 'log10_mass'],
-                'id': ['id', 'ID', 'halo_id', 'haloid']
+                'id': ['id', 'ID', 'halo_id', 'haloid'],
             }
             
             # Find actual column names
@@ -363,7 +398,7 @@ def print_parameter_info():
     - Lines starting with '#' are treated as comments
     - Units: positions in Mpc/h, velocities in km/s, masses in M_sun/h
     
-    Output file format: x y z vx vy vz M Nsat Dvx Dvy Dvz Dx Dy Dz halo_id
+    Output file format: x y z vx vy vz M Nsat Dvx Dvy Dvz Dx Dy Dz halo_id is_central
     
     PARAMETER MODIFICATION GUIDE:
     ============================
@@ -502,13 +537,13 @@ def write_galaxies_to_file(galaxies, f_out, more_info=False):
         
         if more_info:
             # Write all columns (matching C code #ifdef MORE format)
-            # Format: x y z vx vy vz M Nsat Dvx Dvy Dvz Dx Dy Dz halo_id
+            # Format: x y z vx vy vz M Nsat Dvx Dvy Dvz Dx Dy Dz halo_id is_central
             f_out.write(f"{galaxy[0]:.5f} {galaxy[1]:.5f} {galaxy[2]:.5f} "
                        f"{galaxy[3]:.5f} {galaxy[4]:.5f} {galaxy[5]:.5f} "
                        f"{galaxy[6]:.6e} {int(galaxy[7])} "
                        f"{galaxy[8]:.4f} {galaxy[9]:.4f} {galaxy[10]:.4f} "
                        f"{galaxy[11]:.4f} {galaxy[12]:.4f} {galaxy[13]:.4f} "
-                       f"{int(galaxy[14])}\n")
+                       f"{int(galaxy[14])} {int(galaxy[15])}\n")
         else:
             # Write only essential columns (matching C code #else format)
             # Format: x y z vx vy vz M Nsat
@@ -517,9 +552,6 @@ def write_galaxies_to_file(galaxies, f_out, more_info=False):
                        f"{galaxy[6]:.6e} {int(galaxy[7])}\n")
 
 import h5py
-
-import h5py
-import numpy as np
 
 def read_occupation_from_h5(h5file):
     """
@@ -547,13 +579,23 @@ def read_occupation_from_h5(h5file):
         M_max = np.array(data['M_max'])
         Ncen = np.array(data['Ncen'])
         Nsat = np.array(data['Nsat'])
-        N_halo = np.array(data['N_halo'])  # Asegúrate del nombre; puede ser 'N_halo' o 'Nhalo' según tu fichero
+        N_halo = np.array(data['N_halo'])  
 
     # Calcula las medias, evitando divisiones por cero
     Ncen_mean = np.zeros_like(Ncen, dtype=float)
     Nsat_mean = np.zeros_like(Nsat, dtype=float)
-    valid = N_halo > 0
-    Ncen_mean[valid] = Ncen[valid] / N_halo[valid]
-    Nsat_mean[valid] = Nsat[valid] / N_halo[valid]
+    Ncen_mean = Ncen / N_halo
+    Nsat_mean = Nsat / N_halo
 
     return M_min, M_max, Ncen_mean, Nsat_mean
+
+def read_global_conformity_factors(h5file):
+    """
+    Reads K1_global y K2_global from the group'header' in  h5file.
+    Returns: (K1_global, K2_global) as floats
+    """
+    with h5py.File(h5file, 'r') as f:
+        header = f['header']
+        K1_global = float(header.attrs['K1_global'])
+        K2_global = float(header.attrs['K2_global'])
+    return K1_global, K2_global
